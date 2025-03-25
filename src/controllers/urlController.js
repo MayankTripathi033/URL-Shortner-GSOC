@@ -7,6 +7,7 @@ import {
   where,
   getDocs,
   updateDoc,
+  increment,
 } from "firebase/firestore";
 import dotenv from "dotenv";
 import { google } from "googleapis";
@@ -97,6 +98,7 @@ export class UrlController {
   async getOriginalUrl(req, res) {
     try {
       const { shortCode } = req.params;
+      console.log("shortCode:", shortCode);
 
       // 1. Find the URL document
       const q = query(
@@ -104,6 +106,25 @@ export class UrlController {
         where("shortCode", "==", shortCode)
       );
       const querySnapshot = await getDocs(q);
+      try {
+        if (querySnapshot.empty) {
+          console.log("No matching document found for shortCode:", customData);
+          return;
+        }
+
+        // Use Promise.all to ensure all updates complete
+        await Promise.all(
+          querySnapshot.docs.map((doc) => {
+            updateDoc(doc.ref, {
+              clicks: increment(1),
+            });
+          })
+        );
+
+        console.log("Click count updated successfully.");
+      } catch (error) {
+        console.error("Error updating click count:", error);
+      }
 
       if (querySnapshot.empty) {
         return res.status(404).json({ error: "Short URL not found" });
@@ -118,8 +139,6 @@ export class UrlController {
         return res.status(410).json({ error: "This URL has expired" });
       }
 
-      console.log("req.user:", req.params, urlData);
-
       if (
         !req.user ||
         !req.user.providerData?.some((p) => p.providerId === "google.com")
@@ -130,7 +149,10 @@ export class UrlController {
             redirect_uri: `${process.env.BASE_URL}/auth/google/callback`,
             response_type: "code",
             scope: "openid email profile",
-            state: urlData.originalUrl, // Preserve the shortCode
+            state: JSON.stringify({
+              originalUrl: urlData.originalUrl, // Preserve the shortCode
+              customData: shortCode, // Add custom data here
+            }), // Preserve the shortCode
             prompt: "select_account",
             access_type: "offline",
           }

@@ -11,6 +11,16 @@ const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_SECRET,
   `${process.env.BASE_URL}/auth/google/callback`
 );
+import {
+  collection,
+  addDoc,
+  query,
+  where,
+  getDocs,
+  updateDoc,
+  getFirestore,
+  arrayUnion,
+} from "firebase/firestore";
 
 class AuthController {
   async signUp(req, res) {
@@ -140,6 +150,15 @@ class AuthController {
 
       if (!code) throw new Error("Authorization code missing");
 
+      const originalUrl = JSON.parse(decodeURIComponent(state));
+      const customData = originalUrl.customData;
+
+      const db = getFirestore();
+      const q = query(
+        collection(db, "urls"),
+        where("shortCode", "==", customData) // Assuming customData contains the value to match
+      );
+      const querySnapshot = await getDocs(q);
       const { tokens } = await oauth2Client.getToken(code);
       oauth2Client.setCredentials(tokens);
 
@@ -147,15 +166,45 @@ class AuthController {
       const { data: userInfo } = await oauth2.userinfo.get();
 
       console.log("Google User Info:", userInfo);
+      try {
+        if (querySnapshot.empty) {
+          console.log("No matching document found for shortCode:", customData);
+          return;
+        }
+        querySnapshot.forEach(async (doc) => {
+          await updateDoc(doc.ref, {
+            clickedUserData: arrayUnion({
+              name: userInfo.name,
+              email: userInfo.email,
+              timestamp: new Date().toISOString(),
+            }),
+          });
+        });
+      } catch (error) {
+        console.error("Error updating click count:", error);
+      }
 
       // TODO: Store user info or session
       const redirectTo = state?.startsWith("/") ? state : "/";
-      console.log("Redirecting to:", redirectTo);
-      res.redirect(`${state}`);
+      res.redirect(`${originalUrl.originalUrl}`);
     } catch (err) {
       console.error("OAuth callback error:", err);
       res.redirect(`/error?message=${encodeURIComponent(err.message)}`);
     }
+  }
+  async authGoogle(req, res) {
+    const { returnTo } = req.query;
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams(
+      {
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        redirect_uri: `${process.env.BASE_URL}/auth/google/callback`,
+        response_type: "code",
+        scope: "openid email profile",
+        state: returnTo || "/",
+        prompt: "select_account",
+      }
+    )}`;
+    res.redirect(authUrl);
   }
 }
 
