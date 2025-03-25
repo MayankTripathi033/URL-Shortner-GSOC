@@ -133,62 +133,6 @@ class AuthController {
       });
     }
   }
-  async getOriginalUrl(req, res) {
-    try {
-      const { shortCode } = req.params;
-
-      // 1. Find the URL document
-      const q = query(
-        collection(this.db, "urls"),
-        where("shortCode", "==", shortCode)
-      );
-      const querySnapshot = await getDocs(q);
-
-      if (querySnapshot.empty) {
-        return res.status(404).json({ error: "Short URL not found" });
-      }
-
-      const doc = querySnapshot.docs[0];
-      const urlData = doc.data();
-
-      // 2. Check expiration
-      if (new Date(urlData.expiresAt) < new Date()) {
-        await updateDoc(doc.ref, { isActive: false });
-        return res.status(410).json({ error: "This URL has expired" });
-      }
-
-      console.log("req.user:", req.params, urlData);
-
-      if (
-        !req.user ||
-        !req.user.providerData?.some((p) => p.providerId === "google.com")
-      ) {
-        const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams(
-          {
-            client_id: process.env.GOOGLE_CLIENT_ID,
-            redirect_uri: `${process.env.BASE_URL}/auth/google/callback`,
-            response_type: "code",
-            scope: "openid email profile",
-            state: urlData.originalUrl, // Preserve the shortCode
-            prompt: "select_account",
-            access_type: "offline",
-          }
-        )}`;
-
-        return res.redirect(googleAuthUrl);
-      }
-
-      // 5. Redirect to original URL
-      res.redirect(urlData.originalUrl);
-    } catch (error) {
-      console.error("Error retrieving URL:", error);
-      res.status(500).json({
-        error: "Internal server error",
-        details:
-          process.env.NODE_ENV === "development" ? error.message : undefined,
-      });
-    }
-  }
 
   async authenticateGoogle(req, res) {
     try {

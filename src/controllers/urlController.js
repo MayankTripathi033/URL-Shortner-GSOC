@@ -94,7 +94,6 @@ export class UrlController {
       });
     }
   }
-
   async getOriginalUrl(req, res) {
     try {
       const { shortCode } = req.params;
@@ -150,45 +149,6 @@ export class UrlController {
           process.env.NODE_ENV === "development" ? error.message : undefined,
       });
     }
-  }
-
-  async authenticateGoogle(req, res) {
-    try {
-      const { code, state } = req.query;
-
-      if (!code) throw new Error("Authorization code missing");
-
-      const { tokens } = await oauth2Client.getToken(code);
-      oauth2Client.setCredentials(tokens);
-
-      const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
-      const { data: userInfo } = await oauth2.userinfo.get();
-
-      console.log("Google User Info:", userInfo);
-
-      // TODO: Store user info or session
-      const redirectTo = state?.startsWith("/") ? state : "/";
-      console.log("Redirecting to:", redirectTo);
-      res.redirect(`${state}`);
-    } catch (err) {
-      console.error("OAuth callback error:", err);
-      res.redirect(`/error?message=${encodeURIComponent(err.message)}`);
-    }
-  }
-
-  async authGoogle(req, res) {
-    const { returnTo } = req.query;
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams(
-      {
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        redirect_uri: `${process.env.BASE_URL}/auth/google/callback`,
-        response_type: "code",
-        scope: "openid email profile",
-        state: returnTo || "/",
-        prompt: "select_account",
-      }
-    )}`;
-    res.redirect(authUrl);
   }
 }
 
