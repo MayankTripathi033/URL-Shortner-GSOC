@@ -1,0 +1,36 @@
+# Node.js dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Environment variables
+.env
+
+# Build output
+dist/
+build/
+
+# IDE files
+.vscode/
+*.swp
+*.swo
+*.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Coverage directory
+coverage/
+
+# Temporary files
+tmp/
+temp/
+src/config/firebase-admin.json
